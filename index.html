@@ -18,10 +18,6 @@
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
-        /* Card Animations */
-        .swipe-card { transition: transform 0.3s ease, opacity 0.2s ease; }
-        .btn-press:active { transform: scale(0.95); }
-        
         /* Custom toggles */
         .grid-item { transition: all 0.2s; word-break: break-word; line-height: 1.1; }
         .grid-item.present { background-color: #dcfce7; color: #166534; border-color: #166534; }
@@ -35,7 +31,7 @@
         .animate-pop { animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
     </style>
 </head>
-<!-- FIXED: Changed h-screen to h-[100dvh] for mobile browser compatibility -->
+<!-- Mobile viewport height fix -->
 <body class="bg-gray-50 h-[100dvh] flex flex-col overflow-hidden text-gray-800">
 
 <div id="app" class="flex flex-col h-full w-full max-w-md mx-auto bg-white shadow-2xl relative">
@@ -52,8 +48,8 @@
     </header>
 
     <!-- MAIN CONTENT AREA -->
-    <!-- FIXED: Added pb-24 to prevent content hiding behind nav bar -->
-    <main class="flex-1 overflow-y-auto relative bg-gray-50 pb-24">
+    <!-- Added heavy padding bottom so content can scroll above the FAB and Nav -->
+    <main class="flex-1 overflow-y-auto relative bg-gray-50 pb-32">
         
         <!-- TAB 1: SERIAL MODE -->
         <div v-if="activeTab === 'serial'" class="h-full flex flex-col justify-center items-center p-6 relative min-h-[400px]">
@@ -86,7 +82,8 @@
         </div>
 
         <!-- TAB 2: GRID MODE -->
-        <div v-if="activeTab === 'grid'" class="p-2 relative min-h-full">
+        <!-- Added pb-40 so user can scroll content WAY past the button -->
+        <div v-if="activeTab === 'grid'" class="p-2 relative min-h-full pb-40">
             <div class="grid grid-cols-5 gap-2">
                 <div v-for="roll in sortedRolls" :key="roll" 
                      @click="toggleStatus(roll)"
@@ -95,14 +92,6 @@
                     {{ roll }}
                 </div>
             </div>
-        </div>
-
-        <!-- QUICK ADD FLOATING BUTTON -->
-        <!-- FIXED: Moved to bottom-20 to sit ABOVE the nav bar -->
-        <div v-if="activeTab === 'serial' || activeTab === 'grid'" class="absolute bottom-6 right-6 z-30 animate-pop fixed-fab">
-            <button @click="openQuickAdd" class="bg-indigo-600 text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center hover:bg-indigo-700 btn-press">
-                <span class="material-icons-round text-3xl">add</span>
-            </button>
         </div>
 
         <!-- TAB 3: MANUAL MODE -->
@@ -201,8 +190,16 @@
 
     </main>
 
+    <!-- QUICK ADD FLOATING BUTTON -->
+    <!-- FIXED: Changed to FIXED position and moved up to 'bottom-24' to clear the nav bar. 
+         The high z-index ensures it stays on top of the grid. -->
+    <div v-if="activeTab === 'serial' || activeTab === 'grid'" class="fixed bottom-24 right-6 z-50 animate-pop">
+        <button @click="openQuickAdd" class="bg-indigo-600 text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center hover:bg-indigo-700 btn-press">
+            <span class="material-icons-round text-3xl">add</span>
+        </button>
+    </div>
+
     <!-- BOTTOM NAVIGATION TAB BAR -->
-    <!-- FIXED: Absolute positioning ensures it stays at the bottom on Android -->
     <nav class="bg-white shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] border-t border-gray-100 flex justify-around items-center h-16 z-40 absolute bottom-0 w-full max-w-md">
         <button @click="activeTab = 'serial'" :class="['flex flex-col items-center w-full h-full justify-center transition', activeTab === 'serial' ? 'text-indigo-600' : 'text-gray-400']">
             <span class="material-icons-round">swipe</span>
@@ -343,7 +340,8 @@
             const currentDate = Vue.ref(new Date().toISOString().split('T')[0]);
             const currentTime = Vue.ref('9:00 AM - 10:00 AM');
             const serialIndex = Vue.ref(0);
-            const reportType = Vue.ref('A'); 
+            // CHANGED DEFAULT TO 'P' (Present)
+            const reportType = Vue.ref('P'); 
 
             const toast = reactive({ show: false, message: '' });
 
