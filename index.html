@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Attendance Pro</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Vue.js 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Material Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+
+    <style>
+        /* Android-like smooth scrolling and tap highlights */
+        body { -webkit-tap-highlight-color: transparent; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* Card Animations */
+        .swipe-card { transition: transform 0.3s ease, opacity 0.2s ease; }
+        .btn-press:active { transform: scale(0.95); }
+        
+        /* Custom toggles */
+        .grid-item { transition: all 0.2s; word-break: break-word; line-height: 1.1; }
+        .grid-item.present { background-color: #dcfce7; color: #166534; border-color: #166534; }
+        .grid-item.absent { background-color: #fee2e2; color: #991b1b; border-color: #991b1b; }
+        
+        /* Animation */
+        @keyframes slideLeft { from { transform: translateX(100%); } to { transform: translateX(0); } }
+        .animate-slide-left { animation: slideLeft 0.3s ease-out; }
+        
+        @keyframes popIn { from { transform: scale(0); } to { transform: scale(1); } }
+        .animate-pop { animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+    </style>
+</head>
+<body class="bg-gray-50 h-screen flex flex-col overflow-hidden text-gray-800">
+
+<div id="app" class="flex flex-col h-full w-full max-w-md mx-auto bg-white shadow-2xl relative">
+
+    <!-- HEADER -->
+    <header class="bg-indigo-600 text-white p-4 shadow-md z-20 flex justify-between items-center">
+        <div class="overflow-hidden">
+            <h1 class="text-xl font-bold">Attendance</h1>
+            <p class="text-xs opacity-80 truncate">{{ currentSubject === 'Custom' ? tempSubject : currentSubject }}</p>
+        </div>
+        <button @click="showSettings = true" class="p-2 rounded-full hover:bg-indigo-500 transition btn-press flex-shrink-0">
+            <span class="material-icons-round">menu</span>
+        </button>
+    </header>
+
+    <!-- MAIN CONTENT AREA -->
+    <main class="flex-1 overflow-y-auto relative bg-gray-50">
+        
+        <!-- TAB 1: SERIAL MODE -->
+        <div v-if="activeTab === 'serial'" class="h-full flex flex-col justify-center items-center p-6 relative">
+            <div class="w-full max-w-xs bg-white rounded-3xl shadow-xl p-8 text-center border border-gray-100 relative overflow-hidden min-h-[300px] flex flex-col justify-center">
+                <div class="mb-2 text-gray-400 text-sm tracking-widest uppercase">Roll Number</div>
+                <!-- Dynamic font size based on length of roll no -->
+                <div :class="['font-black text-gray-800 mb-6 break-words', currentRoll.length > 5 ? 'text-4xl' : 'text-7xl']">
+                    {{ currentRoll }}
+                </div>
+                
+                <!-- Status Indicator for current roll -->
+                <div v-if="getStatus(currentRoll) === 'P'" class="absolute top-4 right-4 text-green-600 font-bold">P</div>
+                <div v-if="getStatus(currentRoll) === 'A'" class="absolute top-4 right-4 text-red-600 font-bold">A</div>
+
+                <div class="flex justify-between items-center gap-4 mt-4">
+                    <button @click="markSerial(currentRoll, 'A')" class="flex-1 bg-red-100 text-red-600 py-4 rounded-2xl hover:bg-red-200 transition btn-press flex flex-col items-center">
+                        <span class="material-icons-round text-3xl">close</span>
+                        <span class="text-xs font-bold mt-1">ABSENT</span>
+                    </button>
+                    <button @click="markSerial(currentRoll, 'P')" class="flex-1 bg-green-100 text-green-600 py-4 rounded-2xl hover:bg-green-200 transition btn-press flex flex-col items-center">
+                        <span class="material-icons-round text-3xl">check</span>
+                        <span class="text-xs font-bold mt-1">PRESENT</span>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="mt-8 flex items-center gap-4 w-full max-w-xs justify-between text-gray-400">
+                <button @click="prevSerial" class="p-3 rounded-full hover:bg-gray-200"><span class="material-icons-round">arrow_back</span></button>
+                <span class="text-sm font-medium">{{ serialIndex + 1 }} / {{ sortedRolls.length }}</span>
+                <button @click="nextSerial" class="p-3 rounded-full hover:bg-gray-200"><span class="material-icons-round">arrow_forward</span></button>
+            </div>
+        </div>
+
+        <!-- TAB 2: GRID MODE -->
+        <div v-if="activeTab === 'grid'" class="p-2 relative min-h-full">
+            <div class="grid grid-cols-5 gap-2 pb-20">
+                <div v-for="roll in sortedRolls" :key="roll" 
+                     @click="toggleStatus(roll)"
+                     :class="['h-14 flex items-center justify-center rounded-lg border font-bold text-xs md:text-sm cursor-pointer select-none grid-item shadow-sm p-1 text-center', 
+                              getStatus(roll) === 'P' ? 'present' : (getStatus(roll) === 'A' ? 'absent' : 'bg-white border-gray-200 text-gray-600')]">
+                    {{ roll }}
+                </div>
+            </div>
+        </div>
+
+        <!-- QUICK ADD FLOATING BUTTON (Visible in Serial & Grid) -->
+        <div v-if="activeTab === 'serial' || activeTab === 'grid'" class="absolute bottom-6 right-6 z-30 animate-pop">
+            <button @click="openQuickAdd" class="bg-indigo-600 text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center hover:bg-indigo-700 btn-press">
+                <span class="material-icons-round text-3xl">add</span>
+            </button>
+        </div>
+
+        <!-- TAB 3: MANUAL MODE -->
+        <div v-if="activeTab === 'manual'" class="p-6 flex flex-col items-center pt-10">
+            <div class="w-full bg-white p-6 rounded-2xl shadow-lg">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Enter Roll Number</label>
+                <div class="flex gap-2">
+                    <!-- Type Text for Alphanumeric -->
+                    <input type="text" v-model="manualInput" @keyup.enter="markManual('P')" class="flex-1 p-3 border border-gray-300 rounded-xl text-lg outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition" placeholder="e.g. 2023-C-3">
+                </div>
+                <div class="grid grid-cols-2 gap-3 mt-4">
+                    <button @click="markManual('A')" class="bg-red-500 text-white py-3 rounded-xl font-bold shadow hover:bg-red-600 btn-press">Mark Absent</button>
+                    <button @click="markManual('P')" class="bg-green-500 text-white py-3 rounded-xl font-bold shadow hover:bg-green-600 btn-press">Mark Present</button>
+                </div>
+            </div>
+            <div class="mt-6 w-full">
+                <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Recently Marked</h3>
+                <div class="bg-white rounded-xl shadow overflow-hidden">
+                    <div v-for="(log, index) in manualLogs.slice(0,5)" :key="index" class="p-3 border-b last:border-0 flex justify-between items-center text-sm">
+                        <span>Roll <b>{{ log.roll }}</b></span>
+                        <span :class="log.status === 'P' ? 'text-green-600 font-bold' : 'text-red-600 font-bold'">{{ log.status === 'P' ? 'Present' : 'Absent' }}</span>
+                    </div>
+                    <div v-if="manualLogs.length === 0" class="p-4 text-center text-gray-400 text-sm">No entries yet</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 4: RESULT / REPORT -->
+        <div v-if="activeTab === 'result'" class="p-4 h-full overflow-y-auto pb-20">
+            <!-- Report Controls -->
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-4 space-y-3">
+                <div>
+                    <label class="text-xs font-bold text-gray-500 uppercase">Subject</label>
+                    <select v-model="currentSubject" class="w-full mt-1 p-2 bg-gray-50 rounded border border-gray-200 focus:outline-none focus:border-indigo-500 text-sm h-10">
+                        <option v-for="sub in availableSubjects" :value="sub">{{ sub }}</option>
+                        <option value="Custom">Custom Subject...</option>
+                    </select>
+                    <input v-if="currentSubject === 'Custom'" v-model="tempSubject" type="text" placeholder="Enter Subject Name" class="w-full mt-2 p-2 border-b-2 border-indigo-500 outline-none bg-indigo-50 text-sm" />
+                </div>
+
+                <div class="flex gap-2">
+                    <div class="flex-1">
+                        <label class="text-xs font-bold text-gray-500 uppercase">Date</label>
+                        <input type="date" v-model="currentDate" class="w-full mt-1 p-2 bg-gray-50 rounded border border-gray-200 text-sm h-10">
+                    </div>
+                    <div class="flex-1">
+                        <label class="text-xs font-bold text-gray-500 uppercase">Time</label>
+                        <select v-model="currentTime" class="w-full mt-1 p-2 bg-gray-50 rounded border border-gray-200 text-sm h-10">
+                            <option v-for="slot in settings.timeSlots" :value="slot">{{ slot }}</option>
+                            <option value="Custom">Custom Time...</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Temporary Custom Time Selector -->
+                <div v-if="currentTime === 'Custom'" class="bg-indigo-50 p-3 rounded-lg border border-indigo-100 animate-slide-left">
+                    <label class="text-xs font-bold text-indigo-800 uppercase mb-1 block">Set Temporary Time</label>
+                    <div class="flex gap-2 items-center">
+                        <div class="flex-1">
+                            <input type="time" v-model="tempStartTime" class="w-full p-2 rounded border border-indigo-200 text-xs bg-white">
+                        </div>
+                        <span class="text-gray-400">-</span>
+                        <div class="flex-1">
+                            <input type="time" v-model="tempEndTime" class="w-full p-2 rounded border border-indigo-200 text-xs bg-white">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- List Type Toggle -->
+                <div>
+                    <label class="text-xs font-bold text-gray-500 uppercase">List Type</label>
+                    <div class="flex bg-gray-100 rounded-lg p-1 mt-1">
+                        <button @click="reportType = 'A'" :class="['flex-1 py-1 rounded text-sm font-medium transition', reportType === 'A' ? 'bg-white shadow text-red-600' : 'text-gray-500']">Absentees</button>
+                        <button @click="reportType = 'P'" :class="['flex-1 py-1 rounded text-sm font-medium transition', reportType === 'P' ? 'bg-white shadow text-green-600' : 'text-gray-500']">Present</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Preview Box -->
+            <div class="bg-gray-800 text-gray-200 p-4 rounded-xl font-mono text-sm shadow-lg relative">
+                <button @click="copyToClipboard" class="absolute top-2 right-2 bg-white/10 hover:bg-white/20 p-2 rounded text-white transition">
+                    <span class="material-icons-round text-sm">content_copy</span>
+                </button>
+                <div id="report-text">
+                    <p><span class="text-gray-400">Subject :</span> {{ displaySubject }}</p>
+                    <p><span class="text-gray-400">Date :</span> {{ currentDate }}</p>
+                    <p><span class="text-gray-400">Time :</span> {{ displayTime }}</p>
+                    <p><span class="text-gray-400">Roll No. ({{ reportType === 'A' ? 'Absent' : 'Present' }}) :</span></p>
+                    <p class="break-words text-white font-bold mt-1">{{ generatedList }}</p>
+                    <div class="mt-3 pt-3 border-t border-gray-700 flex justify-between">
+                        <span>Total Students : {{ sortedRolls.length }}</span>
+                        <span>Count: {{ getCount(reportType) }}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Reset Button -->
+            <button @click="resetAttendance" class="w-full mt-6 py-3 text-red-500 border border-red-200 rounded-xl hover:bg-red-50 font-medium transition">
+                Reset Attendance for New Session
+            </button>
+        </div>
+
+    </main>
+
+    <!-- BOTTOM NAVIGATION TAB BAR -->
+    <nav class="bg-white shadow-inner border-t border-gray-100 flex justify-around items-center pb-safe pt-2 h-16 z-10">
+        <button @click="activeTab = 'serial'" :class="['flex flex-col items-center w-full h-full justify-center transition', activeTab === 'serial' ? 'text-indigo-600' : 'text-gray-400']">
+            <span class="material-icons-round">swipe</span>
+            <span class="text-[10px] font-bold mt-1">Serial</span>
+        </button>
+        <button @click="activeTab = 'grid'" :class="['flex flex-col items-center w-full h-full justify-center transition', activeTab === 'grid' ? 'text-indigo-600' : 'text-gray-400']">
+            <span class="material-icons-round">grid_view</span>
+            <span class="text-[10px] font-bold mt-1">Grid</span>
+        </button>
+        <button @click="activeTab = 'manual'" :class="['flex flex-col items-center w-full h-full justify-center transition', activeTab === 'manual' ? 'text-indigo-600' : 'text-gray-400']">
+            <span class="material-icons-round">keyboard</span>
+            <span class="text-[10px] font-bold mt-1">Manual</span>
+        </button>
+        <button @click="activeTab = 'result'" :class="['flex flex-col items-center w-full h-full justify-center transition', activeTab === 'result' ? 'text-indigo-600' : 'text-gray-400']">
+            <span class="material-icons-round">assignment</span>
+            <span class="text-[10px] font-bold mt-1">Result</span>
+        </button>
+    </nav>
+
+    <!-- QUICK ADD MODAL -->
+    <div v-if="showQuickAdd" class="absolute inset-0 bg-black/50 z-50 flex justify-center items-center p-4">
+        <div class="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 animate-pop">
+             <h3 class="font-bold text-lg mb-4">Add New Roll No.</h3>
+             <input v-model="quickAddInput" type="text" class="w-full p-3 border border-indigo-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Enter Roll (e.g. 2023-A-1)">
+             <div class="flex gap-3">
+                 <button @click="showQuickAdd = false" class="flex-1 py-3 text-gray-500 font-bold">Cancel</button>
+                 <button @click="confirmQuickAdd" class="flex-1 bg-indigo-600 text-white rounded-lg font-bold shadow hover:bg-indigo-700">Add</button>
+             </div>
+        </div>
+    </div>
+
+    <!-- SETTINGS MODAL (Hamburger) -->
+    <div v-if="showSettings" class="absolute inset-0 bg-black/50 z-50 flex justify-end">
+        <div class="bg-white w-4/5 h-full shadow-2xl flex flex-col animate-slide-left">
+            <div class="bg-indigo-600 text-white p-4 flex justify-between items-center">
+                <h2 class="font-bold text-lg">Settings</h2>
+                <button @click="showSettings = false"><span class="material-icons-round">close</span></button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-4 space-y-6">
+                
+                <!-- Subject Management -->
+                <div>
+                    <h3 class="font-bold text-gray-800 mb-2 border-b pb-1">Manage Subjects</h3>
+                    <div class="flex gap-2 mb-2">
+                        <input v-model="newSubjectInput" placeholder="New Subject Name" class="flex-1 p-2 border rounded text-sm">
+                        <button @click="addSubject" class="bg-indigo-600 text-white px-3 rounded text-sm font-bold">+</button>
+                    </div>
+                    <div class="space-y-2 max-h-40 overflow-y-auto">
+                        <div v-for="(sub, idx) in settings.subjects" :key="idx" class="flex items-center justify-between bg-gray-50 p-2 rounded">
+                            <div class="flex items-center gap-2">
+                                <input type="checkbox" v-model="sub.active" class="accent-indigo-600">
+                                <span :class="{'opacity-50': !sub.active}">{{ sub.name }}</span>
+                            </div>
+                            <button @click="removeSubject(idx)" class="text-red-400"><span class="material-icons-round text-sm">delete</span></button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Roll No Management -->
+                <div>
+                    <h3 class="font-bold text-gray-800 mb-2 border-b pb-1">Roll Numbers</h3>
+                    <p class="text-xs text-gray-500 mb-2">Add alphanumeric or numbers</p>
+                    
+                    <div class="flex gap-2 mb-2">
+                        <input type="text" v-model="newRollInput" placeholder="Add Roll (e.g. C-301)" class="flex-1 p-2 border rounded text-sm">
+                        <button @click="addRoll" class="bg-indigo-600 text-white px-3 rounded text-sm font-bold">+</button>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-2 max-h-60 overflow-y-auto">
+                        <div v-for="(r, idx) in settings.allRolls" :key="idx" 
+                             @click="r.active = !r.active"
+                             :class="['text-center p-1 rounded text-[10px] border cursor-pointer break-all', r.active ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-gray-100 text-gray-400']">
+                            {{ r.val }}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Time Slots -->
+                <div>
+                     <h3 class="font-bold text-gray-800 mb-2 border-b pb-1">Saved Time Slots</h3>
+                     <div class="flex gap-2 items-end bg-gray-50 p-2 rounded border">
+                        <div class="flex-1">
+                            <label class="text-[10px] text-gray-500 block">Start</label>
+                            <input v-model="newTimeStart" type="time" class="w-full p-1 border rounded text-xs bg-white">
+                        </div>
+                        <div class="flex-1">
+                            <label class="text-[10px] text-gray-500 block">End</label>
+                            <input v-model="newTimeEnd" type="time" class="w-full p-1 border rounded text-xs bg-white">
+                        </div>
+                        <button @click="addTime" class="bg-indigo-600 text-white px-3 py-1 h-7 rounded text-sm font-bold">+</button>
+                    </div>
+                    <div class="flex flex-wrap gap-2 mt-2">
+                        <span v-for="(t, i) in settings.timeSlots" :key="i" class="bg-gray-200 px-2 py-1 rounded text-xs flex items-center gap-1">
+                            {{ t }} <button @click="removeTime(i)" class="text-red-500 font-bold">&times;</button>
+                        </span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Full Reset -->
+             <div class="p-4 border-t bg-gray-50">
+                 <button @click="restoreDefaults" class="w-full py-2 bg-gray-200 text-gray-600 text-sm rounded hover:bg-gray-300">Restore Default Settings</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST NOTIFICATION -->
+    <div v-if="toast.show" class="absolute bottom-20 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-full text-sm shadow-xl transition-opacity duration-300 z-50 whitespace-nowrap">
+        {{ toast.message }}
+    </div>
+
+</div>
+
+<script>
+    const { createApp, reactive, computed, watch, onMounted } = Vue;
+
+    createApp({
+        setup() {
+            // --- State ---
+            const activeTab = Vue.ref('serial');
+            const showSettings = Vue.ref(false);
+            const showQuickAdd = Vue.ref(false);
+            const quickAddInput = Vue.ref('');
+            
+            const manualInput = Vue.ref('');
+            const manualLogs = Vue.ref([]);
+            
+            // Temporary inputs
+            const tempSubject = Vue.ref('');
+            const tempStartTime = Vue.ref('09:00');
+            const tempEndTime = Vue.ref('10:00');
+            
+            // Settings Inputs
+            const newSubjectInput = Vue.ref('');
+            const newRollInput = Vue.ref('');
+            const newTimeStart = Vue.ref('');
+            const newTimeEnd = Vue.ref('');
+
+            // Core Data
+            const currentSubject = Vue.ref('Basic Surveying');
+            const currentDate = Vue.ref(new Date().toISOString().split('T')[0]);
+            const currentTime = Vue.ref('9:00 AM - 10:00 AM');
+            const serialIndex = Vue.ref(0);
+            const reportType = Vue.ref('A'); // A for Absentees, P for Present
+
+            const toast = reactive({ show: false, message: '' });
+
+            // --- CONSTANTS: User Provided Defaults ---
+            const DEFAULT_ROLL_LIST = [
+                "63","66","67","68","69","70","71","73","74","75","76","78","79","80","81","82","83","84","85","86","87",
+                "90","91","92","94","95","96","97","99","100","101","102","103","104","105","106","107","108","109","110",
+                "111","112","113","114","116","118","119","120","121","122","123","124","125","126",
+                "301","302","303","304","306","401",
+                "601","602","603","604","605","606","607","608","609","610","611","612",
+                "2023-C-3","2023-C-301","2024-CL-403"
+            ];
+
+            const DEFAULT_TIME_SLOTS = [
+                "9:00 AM - 10:00 AM",
+                "9:00 AM - 11:00 AM",
+                "10:00 AM - 11:00 AM",
+                "11:00 AM - 12:00 PM",
+                "12:00 PM - 1:00 PM",
+                "2:00 PM - 3:00 PM",
+                "3:00 PM - 5:00 PM"
+            ];
+
+            // Persistence Structure
+            const getInitialSettings = () => ({
+                subjects: [
+                    { name: 'Basic Surveying', active: true },
+                    { name: 'Concrete Technology', active: true },
+                    { name: 'Strength of Material', active: true },
+                    { name: 'Building Construction and Material', active: true },
+                    { name: 'Water Resource Engineering', active: true }
+                ],
+                // Convert string array to object array
+                allRolls: DEFAULT_ROLL_LIST.map(r => ({ val: r, active: true })),
+                timeSlots: [...DEFAULT_TIME_SLOTS]
+            });
+
+            const settings = reactive(JSON.parse(localStorage.getItem('attendanceSettings')) || getInitialSettings());
+            
+            // Map: Roll (string) -> Status ('P', 'A', null)
+            const attendanceData = reactive({});
+
+            // --- Helpers ---
+            const format12Hour = (time24) => {
+                if (!time24) return "";
+                const [hours, minutes] = time24.split(':');
+                let h = parseInt(hours);
+                const ampm = h >= 12 ? 'PM' : 'AM';
+                h = h % 12;
+                h = h ? h : 12; 
+                return `${h}:${minutes} ${ampm}`; // Removed leading zero padding on hour to match requested format
+            };
+
+            // --- Computed ---
+            const availableSubjects = computed(() => {
+                return settings.subjects.filter(s => s.active).map(s => s.name);
+            });
+
+            const sortedRolls = computed(() => {
+                return settings.allRolls
+                    .filter(r => r.active)
+                    .map(r => r.val)
+                    // Natural Sort Algorithm (handles Numbers vs Strings vs Mixed)
+                    .sort((a, b) => {
+                        return a.toString().localeCompare(b.toString(), undefined, { numeric: true, sensitivity: 'base' });
+                    });
+            });
+
+            const currentRoll = computed(() => {
+                if (sortedRolls.value.length === 0) return '-';
+                return sortedRolls.value[serialIndex.value] || sortedRolls.value[sortedRolls.value.length -1];
+            });
+
+            const displaySubject = computed(() => {
+                return currentSubject.value === 'Custom' ? tempSubject.value : currentSubject.value;
+            });
+
+            const displayTime = computed(() => {
+                if (currentTime.value === 'Custom') {
+                    return `${format12Hour(tempStartTime.value)} - ${format12Hour(tempEndTime.value)}`;
+                }
+                return currentTime.value;
+            });
+
+            const generatedList = computed(() => {
+                const targetStatus = reportType.value;
+                const list = sortedRolls.value.filter(r => {
+                    const status = attendanceData[r];
+                    return status === targetStatus;
+                });
+                if (list.length === 0) return "None";
+                return list.join(', ');
+            });
+
+            // --- Actions ---
+
+            const showToast = (msg) => {
+                toast.message = msg;
+                toast.show = true;
+                setTimeout(() => toast.show = false, 2000);
+            };
+
+            const getStatus = (roll) => attendanceData[roll];
+
+            const toggleStatus = (roll) => {
+                const current = attendanceData[roll];
+                if (!current) attendanceData[roll] = 'P';
+                else if (current === 'P') attendanceData[roll] = 'A';
+                else attendanceData[roll] = null; 
+                saveSession();
+            };
+
+            const markSerial = (roll, status) => {
+                attendanceData[roll] = status;
+                saveSession();
+                nextSerial();
+            };
+
+            const markManual = (status) => {
+                const r = manualInput.value.trim();
+                if (sortedRolls.value.includes(r)) {
+                    attendanceData[r] = status;
+                    manualLogs.value.unshift({ roll: r, status: status });
+                    manualInput.value = '';
+                    showToast(`${r} marked ${status === 'P' ? 'Present' : 'Absent'}`);
+                    saveSession();
+                } else {
+                    showToast('Roll Number not found in list');
+                }
+            };
+
+            const nextSerial = () => {
+                if (serialIndex.value < sortedRolls.value.length - 1) {
+                    serialIndex.value++;
+                }
+            };
+
+            const prevSerial = () => {
+                if (serialIndex.value > 0) {
+                    serialIndex.value--;
+                }
+            };
+
+            const copyToClipboard = () => {
+                const text = `Subject : ${displaySubject.value}\nDate : ${currentDate.value}\nTime : ${displayTime.value}\nRoll No. (${reportType.value === 'A' ? 'Absent' : 'Present'}) : ${generatedList.value}\nTotal students : ${sortedRolls.value.length}`;
+                navigator.clipboard.writeText(text).then(() => showToast('Copied to Clipboard!'));
+            };
+
+            const resetAttendance = () => {
+                if(confirm("Clear all attendance data for this session?")) {
+                    for (const key in attendanceData) delete attendanceData[key];
+                    serialIndex.value = 0;
+                    manualLogs.value = [];
+                    saveSession();
+                    showToast('Session Reset');
+                }
+            };
+
+            // --- Settings Management ---
+            
+            const addSubject = () => {
+                if (newSubjectInput.value) {
+                    settings.subjects.push({ name: newSubjectInput.value, active: true });
+                    newSubjectInput.value = '';
+                    saveSettings();
+                }
+            };
+
+            const removeSubject = (idx) => {
+                settings.subjects.splice(idx, 1);
+                saveSettings();
+            };
+            
+            const addRollLogic = (val) => {
+                if(val && !settings.allRolls.find(r => r.val === val)) {
+                    settings.allRolls.push({val: val, active: true});
+                    showToast(`Added Roll ${val}`);
+                    saveSettings();
+                    return true;
+                } else if (settings.allRolls.find(r => r.val === val)) {
+                    showToast('Roll already exists');
+                    return false;
+                }
+                return false;
+            };
+
+            const addRoll = () => {
+                const val = newRollInput.value.trim();
+                if(addRollLogic(val)) {
+                    newRollInput.value = '';
+                }
+            };
+
+            // Quick Add Logic
+            const openQuickAdd = () => {
+                quickAddInput.value = '';
+                showQuickAdd.value = true;
+            }
+
+            const confirmQuickAdd = () => {
+                const val = quickAddInput.value.trim();
+                if(val) {
+                    addRollLogic(val);
+                    showQuickAdd.value = false;
+                }
+            }
+
+            const addTime = () => {
+                if(newTimeStart.value && newTimeEnd.value) {
+                    const formatted = `${format12Hour(newTimeStart.value)} - ${format12Hour(newTimeEnd.value)}`;
+                    settings.timeSlots.push(formatted);
+                    newTimeStart.value = '';
+                    newTimeEnd.value = '';
+                    saveSettings();
+                } else {
+                    showToast("Please set Start and End time");
+                }
+            }
+            
+            const removeTime = (idx) => {
+                settings.timeSlots.splice(idx, 1);
+                saveSettings();
+            }
+            
+            const restoreDefaults = () => {
+                if(confirm("This will reset all custom settings (Subjects, Rolls, Times) to factory default. Are you sure?")) {
+                    Object.assign(settings, getInitialSettings());
+                    saveSettings();
+                    showToast("Settings Restored");
+                    showSettings.value = false;
+                }
+            }
+
+            const getCount = (type) => {
+                 return sortedRolls.value.filter(r => attendanceData[r] === type).length;
+            }
+
+            // --- Persistence Logic ---
+            const saveSettings = () => {
+                localStorage.setItem('attendanceSettings', JSON.stringify(settings));
+            };
+
+            const saveSession = () => {
+                localStorage.setItem('attendanceSession', JSON.stringify(attendanceData));
+            };
+
+            onMounted(() => {
+                const savedSession = localStorage.getItem('attendanceSession');
+                if (savedSession) {
+                    Object.assign(attendanceData, JSON.parse(savedSession));
+                }
+                // Ensure default time is set
+                if(settings.timeSlots.length > 0) currentTime.value = settings.timeSlots[0];
+            });
+
+            watch(settings, () => {
+                saveSettings();
+            }, { deep: true });
+
+            return {
+                activeTab, showSettings, settings, attendanceData,
+                currentSubject, currentDate, currentTime, tempSubject,
+                currentRoll, sortedRolls, availableSubjects, serialIndex,
+                displaySubject, generatedList, displayTime,
+                manualInput, manualLogs, toast, reportType,
+                newSubjectInput, newRollInput, 
+                newTimeStart, newTimeEnd, tempStartTime, tempEndTime,
+                showQuickAdd, quickAddInput,
+                // Functions
+                getStatus, toggleStatus, markSerial, markManual,
+                nextSerial, prevSerial, copyToClipboard, resetAttendance,
+                addSubject, removeSubject, addRoll, addTime, removeTime, getCount, restoreDefaults,
+                openQuickAdd, confirmQuickAdd
+            };
+        }
+    }).mount('#app');
+</script>
+
+</body>
+</html>
