@@ -4,15 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Attendance Pro</title>
-
-    <!-- LINK TO ICON AND MANIFEST -->
+    
+    <!-- LINK TO ICON AND MANIFEST (If you added them) -->
     <link rel="icon" type="image/png" href="icon.png">
     <link rel="apple-touch-icon" href="icon.png">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#4f46e5">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Vue.js 3 -->
@@ -39,7 +38,6 @@
         .animate-pop { animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
     </style>
 </head>
-<!-- Mobile viewport height fix -->
 <body class="bg-gray-50 h-[100dvh] flex flex-col overflow-hidden text-gray-800">
 
 <div id="app" class="flex flex-col h-full w-full max-w-md mx-auto bg-white shadow-2xl relative">
@@ -56,7 +54,6 @@
     </header>
 
     <!-- MAIN CONTENT AREA -->
-    <!-- Added heavy padding bottom so content can scroll above the FAB and Nav -->
     <main class="flex-1 overflow-y-auto relative bg-gray-50 pb-32">
         
         <!-- TAB 1: SERIAL MODE -->
@@ -90,7 +87,6 @@
         </div>
 
         <!-- TAB 2: GRID MODE -->
-        <!-- Added pb-40 so user can scroll content WAY past the button -->
         <div v-if="activeTab === 'grid'" class="p-2 relative min-h-full pb-40">
             <div class="grid grid-cols-5 gap-2">
                 <div v-for="roll in sortedRolls" :key="roll" 
@@ -129,6 +125,7 @@
         <!-- TAB 4: RESULT / REPORT -->
         <div v-if="activeTab === 'result'" class="p-4 h-full">
             <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-4 space-y-3">
+                <!-- Selectors -->
                 <div>
                     <label class="text-xs font-bold text-gray-500 uppercase">Subject</label>
                     <select v-model="currentSubject" class="w-full mt-1 p-2 bg-gray-50 rounded border border-gray-200 focus:outline-none focus:border-indigo-500 text-sm h-10">
@@ -174,6 +171,7 @@
                 </div>
             </div>
 
+            <!-- Result Box -->
             <div class="bg-gray-800 text-gray-200 p-4 rounded-xl font-mono text-sm shadow-lg relative">
                 <button @click="copyToClipboard" class="absolute top-2 right-2 bg-white/10 hover:bg-white/20 p-2 rounded text-white transition">
                     <span class="material-icons-round text-sm">content_copy</span>
@@ -186,21 +184,31 @@
                     <p class="break-words text-white font-bold mt-1">{{ generatedList }}</p>
                     <div class="mt-3 pt-3 border-t border-gray-700 flex justify-between">
                         <span>Total Students : {{ sortedRolls.length }}</span>
-                        <span>Count: {{ getCount(reportType) }}</span>
+                        <span class="text-white font-bold">Count: {{ getCount(reportType) }}</span>
                     </div>
                 </div>
             </div>
             
-            <button @click="resetAttendance" class="w-full mt-6 py-3 text-red-500 border border-red-200 rounded-xl hover:bg-red-50 font-medium transition">
-                Reset Attendance for New Session
-            </button>
+            <!-- Modular Reset Controls -->
+            <div class="mt-6">
+                <h3 class="text-xs font-bold text-gray-500 uppercase mb-2">Session Controls</h3>
+                <div class="grid grid-cols-2 gap-3">
+                    <button @click="resetMarks" class="py-2 px-3 border border-orange-200 text-orange-600 rounded-lg bg-orange-50 hover:bg-orange-100 text-xs font-bold">
+                        Clear Marks (P/A)
+                    </button>
+                    <button @click="resetSelectors" class="py-2 px-3 border border-gray-200 text-gray-600 rounded-lg bg-gray-50 hover:bg-gray-100 text-xs font-bold">
+                        Reset Selectors
+                    </button>
+                    <button @click="resetAll" class="col-span-2 py-3 border border-red-200 text-red-600 rounded-lg bg-red-50 hover:bg-red-100 font-bold text-sm">
+                        Start New Session (Clear All)
+                    </button>
+                </div>
+            </div>
         </div>
 
     </main>
 
     <!-- QUICK ADD FLOATING BUTTON -->
-    <!-- FIXED: Changed to FIXED position and moved up to 'bottom-24' to clear the nav bar. 
-         The high z-index ensures it stays on top of the grid. -->
     <div v-if="activeTab === 'serial' || activeTab === 'grid'" class="fixed bottom-24 right-6 z-50 animate-pop">
         <button @click="openQuickAdd" class="bg-indigo-600 text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center hover:bg-indigo-700 btn-press">
             <span class="material-icons-round text-3xl">add</span>
@@ -248,6 +256,15 @@
             </div>
             <div class="flex-1 overflow-y-auto p-4 space-y-6">
                 
+                <!-- Manage Defaults Section -->
+                <div class="bg-indigo-50 p-3 rounded-lg border border-indigo-100">
+                    <h3 class="font-bold text-indigo-900 mb-1">Defaults Management</h3>
+                    <p class="text-[10px] text-indigo-700 mb-2">Save current subjects/rolls as new defaults.</p>
+                    <button @click="saveAsDefault" class="w-full py-2 bg-indigo-600 text-white text-xs rounded font-bold hover:bg-indigo-700 mb-2">
+                        Save Current Config as My Default
+                    </button>
+                </div>
+
                 <!-- Subject Management -->
                 <div>
                     <h3 class="font-bold text-gray-800 mb-2 border-b pb-1">Manage Subjects</h3>
@@ -309,7 +326,7 @@
             
             <!-- Full Reset -->
              <div class="p-4 border-t bg-gray-50">
-                 <button @click="restoreDefaults" class="w-full py-2 bg-gray-200 text-gray-600 text-sm rounded hover:bg-gray-300">Restore Default Settings</button>
+                 <button @click="factoryReset" class="w-full py-2 bg-gray-200 text-gray-600 text-sm rounded hover:bg-gray-300">Hard Factory Reset (Clear Defaults)</button>
             </div>
         </div>
     </div>
@@ -348,12 +365,12 @@
             const currentDate = Vue.ref(new Date().toISOString().split('T')[0]);
             const currentTime = Vue.ref('9:00 AM - 10:00 AM');
             const serialIndex = Vue.ref(0);
-            // CHANGED DEFAULT TO 'P' (Present)
             const reportType = Vue.ref('P'); 
 
             const toast = reactive({ show: false, message: '' });
 
-            const DEFAULT_ROLL_LIST = [
+            // --- CONSTANTS: FACTORY DEFAULTS ---
+            const FACTORY_ROLL_LIST = [
                 "63","66","67","68","69","70","71","73","74","75","76","78","79","80","81","82","83","84","85","86","87",
                 "90","91","92","94","95","96","97","99","100","101","102","103","104","105","106","107","108","109","110",
                 "111","112","113","114","116","118","119","120","121","122","123","124","125","126",
@@ -362,17 +379,12 @@
                 "2023-C-3","2023-C-301","2024-CL-403"
             ];
 
-            const DEFAULT_TIME_SLOTS = [
-                "9:00 AM - 10:00 AM",
-                "9:00 AM - 11:00 AM",
-                "10:00 AM - 11:00 AM",
-                "11:00 AM - 12:00 PM",
-                "12:00 PM - 1:00 PM",
-                "2:00 PM - 3:00 PM",
-                "3:00 PM - 5:00 PM"
+            const FACTORY_TIME_SLOTS = [
+                "9:00 AM - 10:00 AM", "9:00 AM - 11:00 AM", "10:00 AM - 11:00 AM",
+                "11:00 AM - 12:00 PM", "12:00 PM - 1:00 PM", "2:00 PM - 3:00 PM", "3:00 PM - 5:00 PM"
             ];
 
-            const getInitialSettings = () => ({
+            const getFactorySettings = () => ({
                 subjects: [
                     { name: 'Basic Surveying', active: true },
                     { name: 'Concrete Technology', active: true },
@@ -380,13 +392,18 @@
                     { name: 'Building Construction and Material', active: true },
                     { name: 'Water Resource Engineering', active: true }
                 ],
-                allRolls: DEFAULT_ROLL_LIST.map(r => ({ val: r, active: true })),
-                timeSlots: [...DEFAULT_TIME_SLOTS]
+                allRolls: FACTORY_ROLL_LIST.map(r => ({ val: r, active: true })),
+                timeSlots: [...FACTORY_TIME_SLOTS]
             });
 
-            const settings = reactive(JSON.parse(localStorage.getItem('attendanceSettings')) || getInitialSettings());
+            // --- LOAD SETTINGS (Priority: Active -> Saved User Default -> Factory)
+            const savedDefaults = JSON.parse(localStorage.getItem('attendanceUserDefaults'));
+            const initialSettings = JSON.parse(localStorage.getItem('attendanceSettings')) || savedDefaults || getFactorySettings();
+            
+            const settings = reactive(initialSettings);
             const attendanceData = reactive({});
 
+            // --- COMPUTED / HELPERS ---
             const format12Hour = (time24) => {
                 if (!time24) return "";
                 const [hours, minutes] = time24.split(':');
@@ -425,11 +442,15 @@
                 return list.join(', ');
             });
 
+            const getCount = (type) => sortedRolls.value.filter(r => attendanceData[r] === type).length;
+
             const showToast = (msg) => {
                 toast.message = msg;
                 toast.show = true;
                 setTimeout(() => toast.show = false, 2000);
             };
+
+            // --- CORE ACTIONS ---
 
             const getStatus = (roll) => attendanceData[roll];
 
@@ -469,19 +490,43 @@
             };
 
             const copyToClipboard = () => {
-                const text = `Subject : ${displaySubject.value}\nDate : ${currentDate.value}\nTime : ${displayTime.value}\nRoll No. (${reportType.value === 'A' ? 'Absent' : 'Present'}) : ${generatedList.value}\nTotal students : ${sortedRolls.value.length}`;
-                navigator.clipboard.writeText(text).then(() => showToast('Copied to Clipboard!'));
+                const count = getCount(reportType.value);
+                // Updated copy logic: Shows COUNT instead of TOTAL STUDENTS at bottom
+                const text = `Subject : ${displaySubject.value}\nDate : ${currentDate.value}\nTime : ${displayTime.value}\nRoll No. (${reportType.value === 'A' ? 'Absent' : 'Present'}) : ${generatedList.value}\nCount : ${count}`;
+                navigator.clipboard.writeText(text).then(() => showToast('Copied with Count!'));
             };
 
-            const resetAttendance = () => {
-                if(confirm("Clear all attendance data for this session?")) {
+            // --- RESET LOGIC (Modular) ---
+
+            const resetMarks = () => {
+                 if(confirm("Clear only attendance marks? (Subjects/Time remain same)")) {
                     for (const key in attendanceData) delete attendanceData[key];
                     serialIndex.value = 0;
                     manualLogs.value = [];
                     saveSession();
-                    showToast('Session Reset');
+                    showToast('Marks Cleared');
                 }
             };
+
+            const resetSelectors = () => {
+                currentSubject.value = availableSubjects.value[0] || 'Custom';
+                currentTime.value = settings.timeSlots[0] || 'Custom';
+                currentDate.value = new Date().toISOString().split('T')[0];
+                showToast('Selectors Reset');
+            };
+
+            const resetAll = () => {
+                if(confirm("Start completely new session? (Clears marks & selectors)")) {
+                    resetMarks(false); // Call without confirm logic inside
+                    resetSelectors();
+                    // Force clear data just in case
+                    for (const key in attendanceData) delete attendanceData[key];
+                    saveSession();
+                    showToast('New Session Started');
+                }
+            }
+
+            // --- SETTINGS LOGIC ---
             
             const addSubject = () => {
                 if (newSubjectInput.value) {
@@ -502,9 +547,6 @@
                     showToast(`Added Roll ${val}`);
                     saveSettings();
                     return true;
-                } else if (settings.allRolls.find(r => r.val === val)) {
-                    showToast('Roll already exists');
-                    return false;
                 }
                 return false;
             };
@@ -544,17 +586,26 @@
                 saveSettings();
             }
             
-            const restoreDefaults = () => {
-                if(confirm("Reset all settings to factory defaults?")) {
-                    Object.assign(settings, getInitialSettings());
+            // --- DEFAULT MANAGEMENT ---
+            
+            const saveAsDefault = () => {
+                if(confirm("Save current Subjects, Rolls, and Times as your new Default?")) {
+                    localStorage.setItem('attendanceUserDefaults', JSON.stringify(settings));
+                    showToast("New Defaults Saved");
+                }
+            };
+
+            const factoryReset = () => {
+                if(confirm("WARNING: This will delete your Saved Defaults and revert to the original app code. Continue?")) {
+                    localStorage.removeItem('attendanceUserDefaults');
+                    Object.assign(settings, getFactorySettings());
                     saveSettings();
-                    showToast("Settings Restored");
+                    showToast("Factory Reset Complete");
                     showSettings.value = false;
                 }
             }
 
-            const getCount = (type) => sortedRolls.value.filter(r => attendanceData[r] === type).length;
-
+            // --- PERSISTENCE ---
             const saveSettings = () => localStorage.setItem('attendanceSettings', JSON.stringify(settings));
             const saveSession = () => localStorage.setItem('attendanceSession', JSON.stringify(attendanceData));
 
@@ -576,8 +627,12 @@
                 newTimeStart, newTimeEnd, tempStartTime, tempEndTime,
                 showQuickAdd, quickAddInput,
                 getStatus, toggleStatus, markSerial, markManual,
-                nextSerial, prevSerial, copyToClipboard, resetAttendance,
-                addSubject, removeSubject, addRoll, addTime, removeTime, getCount, restoreDefaults,
+                nextSerial, prevSerial, copyToClipboard, 
+                // Updated Reset Functions
+                resetMarks, resetSelectors, resetAll,
+                addSubject, removeSubject, addRoll, addTime, removeTime, getCount, 
+                // Default Management
+                saveAsDefault, factoryReset,
                 openQuickAdd, confirmQuickAdd
             };
         }
