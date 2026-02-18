@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Attendance Pro</title>
     
-    <!-- LINK TO ICON AND MANIFEST (If you added them) -->
+    <!-- LINK TO ICON AND MANIFEST -->
     <link rel="icon" type="image/png" href="icon.png">
     <link rel="apple-touch-icon" href="icon.png">
     <link rel="manifest" href="manifest.json">
@@ -172,7 +172,7 @@
             </div>
 
             <!-- Result Box -->
-            <div class="bg-gray-800 text-gray-200 p-4 rounded-xl font-mono text-sm shadow-lg relative">
+            <div class="bg-gray-800 text-gray-200 p-4 rounded-xl font-mono text-sm shadow-lg relative mb-4">
                 <button @click="copyToClipboard" class="absolute top-2 right-2 bg-white/10 hover:bg-white/20 p-2 rounded text-white transition">
                     <span class="material-icons-round text-sm">content_copy</span>
                 </button>
@@ -188,9 +188,56 @@
                     </div>
                 </div>
             </div>
+
+            <!-- SAVE AND COPY BUTTON -->
+            <button @click="saveAndCopy" class="w-full py-3 bg-indigo-600 text-white rounded-xl shadow-lg font-bold flex items-center justify-center gap-2 mb-6 hover:bg-indigo-700 btn-press">
+                <span class="material-icons-round">save</span>
+                Save to History & Copy
+            </button>
             
+            <!-- HISTORY SECTION -->
+            <div class="mb-6">
+                 <h3 class="text-xs font-bold text-gray-500 uppercase mb-2 flex justify-between items-center">
+                    Previous Attendances
+                    <span class="text-[10px] bg-gray-200 px-2 py-0.5 rounded-full">{{ historyLogs.length }}</span>
+                 </h3>
+                 
+                 <div v-if="historyLogs.length === 0" class="text-center p-4 text-gray-400 text-sm bg-gray-50 rounded-lg border border-dashed border-gray-200">
+                     No history yet. Save a session to see it here.
+                 </div>
+
+                 <div class="space-y-3">
+                     <div v-for="(log, index) in historyLogs" :key="log.id" class="bg-white p-3 rounded-lg border border-gray-100 shadow-sm flex flex-col gap-2">
+                         <div class="flex justify-between items-start">
+                             <div>
+                                 <h4 class="font-bold text-sm text-gray-800">{{ log.subject }}</h4>
+                                 <p class="text-xs text-gray-500">{{ log.date }} • {{ log.time }}</p>
+                             </div>
+                             <div class="bg-gray-100 px-2 py-1 rounded text-xs font-bold text-gray-600">
+                                 Count: {{ log.count }}
+                             </div>
+                         </div>
+                         
+                         <div class="flex border-t pt-2 mt-1 gap-2">
+                             <!-- Load/Edit -->
+                             <button @click="loadHistory(log)" class="flex-1 py-1.5 flex items-center justify-center gap-1 text-xs font-bold text-indigo-600 bg-indigo-50 rounded hover:bg-indigo-100">
+                                 <span class="material-icons-round text-sm">edit</span> Edit / Load
+                             </button>
+                             <!-- Copy Text -->
+                             <button @click="copyHistoryItem(log)" class="flex-1 py-1.5 flex items-center justify-center gap-1 text-xs font-bold text-gray-600 bg-gray-50 rounded hover:bg-gray-100">
+                                 <span class="material-icons-round text-sm">content_copy</span> Copy
+                             </button>
+                             <!-- Delete -->
+                             <button @click="deleteHistory(index)" class="w-8 flex items-center justify-center text-red-400 hover:text-red-600 rounded bg-red-50 hover:bg-red-100">
+                                 <span class="material-icons-round text-sm">delete</span>
+                             </button>
+                         </div>
+                     </div>
+                 </div>
+            </div>
+
             <!-- Modular Reset Controls -->
-            <div class="mt-6">
+            <div class="pb-10">
                 <h3 class="text-xs font-bold text-gray-500 uppercase mb-2">Session Controls</h3>
                 <div class="grid grid-cols-2 gap-3">
                     <button @click="resetMarks" class="py-2 px-3 border border-orange-200 text-orange-600 rounded-lg bg-orange-50 hover:bg-orange-100 text-xs font-bold">
@@ -199,7 +246,7 @@
                     <button @click="resetSelectors" class="py-2 px-3 border border-gray-200 text-gray-600 rounded-lg bg-gray-50 hover:bg-gray-100 text-xs font-bold">
                         Reset Selectors
                     </button>
-                    <button @click="resetAll" class="col-span-2 py-3 border border-red-200 text-red-600 rounded-lg bg-red-50 hover:bg-red-100 font-bold text-sm">
+                    <button @click="resetAllWithPrompt" class="col-span-2 py-3 border border-red-200 text-red-600 rounded-lg bg-red-50 hover:bg-red-100 font-bold text-sm">
                         Start New Session (Clear All)
                     </button>
                 </div>
@@ -366,6 +413,9 @@
             const currentTime = Vue.ref('9:00 AM - 10:00 AM');
             const serialIndex = Vue.ref(0);
             const reportType = Vue.ref('P'); 
+            
+            // HISTORY STATE
+            const historyLogs = Vue.ref([]);
 
             const toast = reactive({ show: false, message: '' });
 
@@ -489,22 +539,122 @@
                 if (serialIndex.value > 0) serialIndex.value--;
             };
 
+            // === COPY UTILITY ===
+            const execCopy = (text) => {
+                 if (!navigator.clipboard) {
+                    const textArea = document.createElement("textarea");
+                    textArea.value = text;
+                    textArea.style.position = "fixed";
+                    document.body.appendChild(textArea);
+                    textArea.focus();
+                    textArea.select();
+                    try {
+                        document.execCommand('copy');
+                        showToast('Copied!');
+                    } catch (err) {
+                        showToast('Copy Failed (OS restricted)');
+                    }
+                    document.body.removeChild(textArea);
+                } else {
+                    navigator.clipboard.writeText(text).then(() => showToast('Copied!'));
+                }
+            }
+
+            const getCopyText = (subject, date, time, type, list, count) => {
+                 return `Subject : ${subject}\nDate : ${date}\nTime : ${time}\nRoll No. (${type === 'A' ? 'Absent' : 'Present'}) : ${list}\nCount : ${count}`;
+            }
+
             const copyToClipboard = () => {
                 const count = getCount(reportType.value);
-                // Updated copy logic: Shows COUNT instead of TOTAL STUDENTS at bottom
-                const text = `Subject : ${displaySubject.value}\nDate : ${currentDate.value}\nTime : ${displayTime.value}\nRoll No. (${reportType.value === 'A' ? 'Absent' : 'Present'}) : ${generatedList.value}\nCount : ${count}`;
-                navigator.clipboard.writeText(text).then(() => showToast('Copied with Count!'));
+                const text = getCopyText(displaySubject.value, currentDate.value, displayTime.value, reportType.value, generatedList.value, count);
+                execCopy(text);
+            };
+            
+            // === HISTORY LOGIC ===
+
+            const saveToHistory = () => {
+                // Snapshot the current session data
+                const log = {
+                    id: Date.now(),
+                    subject: displaySubject.value,
+                    date: currentDate.value,
+                    time: displayTime.value,
+                    attendanceData: JSON.parse(JSON.stringify(attendanceData)), // Deep copy marks
+                    reportType: reportType.value,
+                    count: getCount(reportType.value),
+                    generatedList: generatedList.value // Snapshot string for easy copy
+                };
+                
+                historyLogs.value.unshift(log);
+                localStorage.setItem('attendanceHistory', JSON.stringify(historyLogs.value));
+                return true;
+            };
+            
+            const deleteHistory = (index) => {
+                if(confirm("Delete this entry from history?")) {
+                    historyLogs.value.splice(index, 1);
+                    localStorage.setItem('attendanceHistory', JSON.stringify(historyLogs.value));
+                }
+            };
+
+            const loadHistory = (log) => {
+                if(confirm("Load this into the main editor? Current unsaved marks will be replaced.")) {
+                    // Restore State
+                    // 1. Try to set subject (might be custom or list)
+                    if(settings.subjects.find(s => s.name === log.subject)) {
+                        currentSubject.value = log.subject;
+                    } else {
+                        currentSubject.value = 'Custom';
+                        tempSubject.value = log.subject;
+                    }
+                    
+                    // 2. Set Date
+                    currentDate.value = log.date;
+
+                    // 3. Set Time (Approximation)
+                    if(settings.timeSlots.includes(log.time)) {
+                        currentTime.value = log.time;
+                    } else {
+                        // If it was custom, we can't easily parse back to Start/End inputs without complex regex, 
+                        // so we set it to Custom but users might need to re-enter exact times if they want to edit time.
+                        // Or we just leave the current time selector as is. 
+                        // Let's try to set to Custom just to indicate.
+                        currentTime.value = 'Custom'; 
+                    }
+                    
+                    // 4. Restore Marks
+                    // Clear current
+                    for (const key in attendanceData) delete attendanceData[key];
+                    // Apply saved
+                    Object.assign(attendanceData, log.attendanceData);
+                    
+                    saveSession();
+                    showToast("Session Loaded for Editing");
+                    // Scroll up
+                    document.querySelector('main').scrollTop = 0;
+                }
+            }
+            
+            const copyHistoryItem = (log) => {
+                 const text = getCopyText(log.subject, log.date, log.time, log.reportType, log.generatedList, log.count);
+                 execCopy(text);
+            };
+
+            const saveAndCopy = () => {
+                saveToHistory();
+                copyToClipboard();
+                showToast("Saved & Copied!");
             };
 
             // --- RESET LOGIC (Modular) ---
 
-            const resetMarks = () => {
-                 if(confirm("Clear only attendance marks? (Subjects/Time remain same)")) {
+            const resetMarks = (silent = false) => {
+                 if(silent || confirm("Clear only attendance marks? (Subjects/Time remain same)")) {
                     for (const key in attendanceData) delete attendanceData[key];
                     serialIndex.value = 0;
                     manualLogs.value = [];
                     saveSession();
-                    showToast('Marks Cleared');
+                    if(!silent) showToast('Marks Cleared');
                 }
             };
 
@@ -515,12 +665,19 @@
                 showToast('Selectors Reset');
             };
 
-            const resetAll = () => {
-                if(confirm("Start completely new session? (Clears marks & selectors)")) {
-                    resetMarks(false); // Call without confirm logic inside
+            const resetAllWithPrompt = () => {
+                // Ask to save first?
+                if (Object.keys(attendanceData).length > 0) {
+                     if(confirm("Save current session to History before clearing?")) {
+                         saveToHistory();
+                         showToast("Saved to History");
+                     }
+                }
+                
+                // Then confirm clear
+                if(confirm("Start completely new session? (Clear All)")) {
+                    resetMarks(true);
                     resetSelectors();
-                    // Force clear data just in case
-                    for (const key in attendanceData) delete attendanceData[key];
                     saveSession();
                     showToast('New Session Started');
                 }
@@ -610,9 +767,14 @@
             const saveSession = () => localStorage.setItem('attendanceSession', JSON.stringify(attendanceData));
 
             onMounted(() => {
+                // Load Session
                 const savedSession = localStorage.getItem('attendanceSession');
                 if (savedSession) Object.assign(attendanceData, JSON.parse(savedSession));
                 if(settings.timeSlots.length > 0) currentTime.value = settings.timeSlots[0];
+                
+                // Load History
+                const savedHistory = localStorage.getItem('attendanceHistory');
+                if (savedHistory) historyLogs.value = JSON.parse(savedHistory);
             });
 
             watch(settings, () => saveSettings(), { deep: true });
@@ -626,14 +788,17 @@
                 newSubjectInput, newRollInput, 
                 newTimeStart, newTimeEnd, tempStartTime, tempEndTime,
                 showQuickAdd, quickAddInput,
+                historyLogs,
                 getStatus, toggleStatus, markSerial, markManual,
                 nextSerial, prevSerial, copyToClipboard, 
                 // Updated Reset Functions
-                resetMarks, resetSelectors, resetAll,
+                resetMarks, resetSelectors, resetAllWithPrompt,
                 addSubject, removeSubject, addRoll, addTime, removeTime, getCount, 
                 // Default Management
                 saveAsDefault, factoryReset,
-                openQuickAdd, confirmQuickAdd
+                openQuickAdd, confirmQuickAdd,
+                // History Actions
+                saveToHistory, deleteHistory, loadHistory, copyHistoryItem, saveAndCopy
             };
         }
     }).mount('#app');
