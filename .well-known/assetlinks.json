@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "app.cellate.attendance_pro",
+        "sha256_cert_fingerprints": ["22:A1:76:69:71:6B:49:BE:FD:86:C5:6A:10:D4:17:D7:28:D1:63:08:DC:E1:4C:23:28:17:6F:D4:66:D0:30:91"]
+      }
+    }]
