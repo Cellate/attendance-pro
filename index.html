@@ -12,12 +12,23 @@
     <meta name="theme-color" content="#4f46e5">
     <meta name="apple-mobile-web-app-capable" content="yes">
 
+    <script>
+        if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+        .then(reg => console.log('Service Worker Registered!'))
+        .catch(err => console.log('Service Worker Failed', err));
+        });
+    }
+    </script>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Vue.js 3 -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <!-- Material Icons -->
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+
+
 
     <style>
         /* Android-like smooth scrolling and tap highlights */
@@ -251,6 +262,9 @@
                     </button>
                 </div>
             </div>
+
+            <!-- THE FIX: INVISIBLE SPACER TO PUSH CONTENT UP -->
+            <div class="h-48 w-full"></div>
         </div>
 
     </main>
